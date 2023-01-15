@@ -88,66 +88,98 @@ document.addEventListener('DOMContentLoaded', () => {
         "A-7": 3520,
         "A#7": 3729.31,
         "B-7": 3951.07,
-        "C-8": 4186.01
+        "C-8": 4186.01,
+        "OFF": 0
       };
+
     let song = [
-        { note: 'C-4', duration: .5},
-        { note: 'D-4', duration: .5},
-        { note: 'E-4', duration: .5},
-        { note: 'F-4', duration: .5},
-        { note: 'G-4', duration: .5},
-        { note: 'A-4', duration: .5},
-        { note: 'B-4', duration: .5},
-        { note: 'C-5', duration: .5}
-    ];
+        [
+            {note: 'C-4', velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: 'OFF', velocity: 1, effect: 0x00},
+            {note: 'D-4', velocity: 1, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'D-4', velocity: .5, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'D-4', velocity: .25, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'D-4', velocity: .12, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+        ],
+        [
+            {note: 'E-4', velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: null, velocity: 1, effect: 0x00},
+            {note: 'OFF', velocity: 1, effect: 0x00},
+            {note: 'F-4', velocity: 1, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'F-4', velocity: .5, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'F-4', velocity: .25, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+            {note: 'F-4', velocity: .12, effect: 0x00},
+            {note: 'OFF', velocity: null, effect: 0x00},
+        ]
+    ]
     let index = 0;
+    let noteStarted = false;
+    
     document.querySelector('#play').addEventListener('click', () => {
         const actx = new AudioContext();
+        const gainNode = actx.createGain();
+        const panNode = actx.createStereoPanner();
+        var osc = null;
+        const ADSR = {attack: 0.05, decay: 0, sustain: 1, release: 0.3}
         if (!actx) {
             alert('AudioContext not supported');
             return;
         }
 
-        function playNextNote(){
-            if(index >= song.length){
+        function playNextRow(){
+            if(index >= song[0].length){
                 return;
             }
-            const osc = actx.createOscillator();
-            const osc2 = actx.createOscillator();
-            const osc3 = actx.createOscillator();
-            const gainNode = actx.createGain();
-            osc.type = 'sawtooth';
-            osc2.type = 'sawtooth';
-            osc3.type = 'sawtooth';
-            osc.frequency.value = NOTES[song[index].note];
-            osc2.frequency.value = NOTES[song[index].note] + 2;
-            osc3.frequency.value = NOTES[song[index].note] - 2;
-
-            osc.connect(gainNode);
-            osc2.connect(gainNode);
-            osc3.connect(gainNode);
-            gainNode.connect(actx.destination);
-            gainNode.gain.linearRampToValueAtTime(0, actx.currentTime + 1)
-            gainNode.gain.value = 0.5;
-
-            osc.start();
-            osc2.start();
-            osc3.start();
+            song.forEach(channel => {
+                    if(channel[index].note != null && channel[index].note != 'OFF'){
+                        osc = actx.createOscillator();  
+                        osc.type = 'sawtooth';
+                        osc.frequency.value = NOTES[channel[index].note];
+                    
+                        osc.connect(gainNode);
+        
+                        const now = actx.currentTime;
+                        const attackDuration = ADSR.attack;
+                        const attackEndTime = now + attackDuration;
+                        const decayDuration = ADSR.decay;
+        
+                        gainNode.connect(actx.destination);
+        
+                        gainNode.gain.linearRampToValueAtTime(0, actx.currentTime);
+                        gainNode.gain.linearRampToValueAtTime(channel[index].velocity, attackEndTime);
+                        gainNode.gain.linearRampToValueAtTime(ADSR.sustain * channel[index].velocity, attackEndTime + decayDuration);
+        
+                        osc.start();
+                        noteStarted = true;
+                    }
+                    if(channel[index].note == 'OFF' && noteStarted){
+                        gainNode.gain.linearRampToValueAtTime(0, actx.currentTime + ADSR.release);
+                        osc.stop(actx.currentTime + ADSR.release);
+                        noteStarted = false;
+                    }
+            
+            })
+            
             setTimeout(() => {
-                osc.stop(actx.currentTime + 1);
-                osc2.stop(actx.currentTime + 1);
-                osc3.stop(actx.currentTime + 1);
                 index++;
-                playNextNote();
-            }, 1000);
+                playNextRow();
+            }, 500);
         }
-        playNextNote();
+        playNextRow();
         
     });
 
-    const sliderEl = document.querySelector('input[type="range"]');
-    sliderEl.addEventListener('input', (e) => {
-        frequency = e.target.value * 400;
-    });
 });
 
